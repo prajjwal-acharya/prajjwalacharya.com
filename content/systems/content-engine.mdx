@@ -1,0 +1,29 @@
+---
+id: SYS-002
+title: ContentEngine
+status: research
+summary: A composable content engine for developer-owned websites, so shipping a blog or docs site never means rebuilding an admin panel from scratch. Still an idea-locked vision document, nothing has been built yet.
+date: 2026-07-21
+techStack: []
+links: [{ label: "GitHub · repo TBD", url: "https://github.com/prajjwal-acharya/" }]
+slug: content-engine
+---
+
+## Why it exists
+
+Every developer who builds a custom site on Next.js, Astro, Remix, or similar ends up rebuilding the same content infrastructure: auth, an admin dashboard, a rich text editor, drafts, media uploads, SEO metadata. ContentEngine exists to remove that repetition, without asking anyone to give up their own frontend for a full CMS.
+
+## What it aims to do
+
+Plug into an existing site rather than replace it. Authentication, storage, media, and the editor would each be a swappable adapter, Postgres or Supabase, R2 or S3, Better Auth or Clerk, rather than a fixed backend the whole site has to be built around.
+
+## Design principles
+
+- Developer first, not built for marketers or ecommerce.
+- Composable: auth, storage, media, editor, and renderer are each replaceable pieces, not one bundled system.
+- Framework, backend, storage, and auth agnostic by design.
+
+<Callout type="research" title="Idea locked, v0.1">
+  This is a vision document only. No architecture, API, or line of code exists yet, this page gets
+  rewritten once real work starts. The GitHub link above is a placeholder profile, not a repository.
+</Callout>

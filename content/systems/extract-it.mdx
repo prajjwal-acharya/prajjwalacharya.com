@@ -1,0 +1,146 @@
+---
+id: SYS-001
+title: Extract-It
+status: active
+summary: A document intelligence pipeline that extracts, verifies, and audits structured data from IDs, bank statements, and invoices, with a human in the loop for anything it can't prove.
+date: 2026-07-21
+techStack:
+  ["Python", "FastAPI", "LangGraph", "PostgreSQL", "pgvector", "Gemini", "Streamlit", "GCP"]
+links: [{ label: "GitHub", url: "https://github.com/prajjwal-acharya/extract-it" }]
+slug: extract-it
+---
+
+## Why it exists
+
+Document extraction usually forces a bad tradeoff: rigid OCR templates that break the moment a form changes, or a hosted model that returns an answer with no way to check its work. Extract-It exists to close that gap. It treats extraction as a claim that has to be verified, not a guess that gets trusted by default.
+
+- Every extracted field is checked by a deterministic verifier before anything downstream can rely on it (MRZ checksum, balance arithmetic, GSTIN checksum, and similar).
+- A failed check triggers an automatic retry with a better prompt, better retrieval context, or a stronger model, not a silent pass-through.
+- Anything that still can't clear the bar after retries goes to a human reviewer instead of shipping a wrong answer.
+- Every retrieval and every decision is logged, so a result can be explained after the fact instead of taken on faith.
+
+## Architecture
+
+A document moves through ingestion, a LangGraph pipeline, and out to Postgres, an object store, and a Streamlit dashboard.
+
+- **Ingestion.** `POST /ingest/` or a local file watch takes the upload, hashes it (SHA-256) for dedup, puts the raw bytes in MinIO/GCS, and inserts a `documents` row with `status=queued`. The pipeline then runs as a background task, so the API returns a `document_id` immediately.
+- **Pipeline (LangGraph).** `master → classify → extract → truth_engine → resolution_planner → strategy_executor`, then one of `normalize` (accepted), `op_a_retry → truth_engine` (retry loop), or `op_b_hitl → normalize` (human review). Every node is wrapped by a `_stamp_phase()` call that writes `Document.current_phase` before the node runs, so progress is visible mid-flight, not just at completion.
+- **Checkpointing.** The full pipeline state is serialized to Postgres after every node (`langgraph-checkpoint-postgres`). This is what makes human review possible at all: `op_b_hitl` calls `interrupt()`, the graph suspends, and a decision later resumes it from that exact point. The same mechanism recovers documents stranded by a crash or container restart.
+- **Fan-out.** Postgres holds documents, confidence logs, truth/persistence audit logs, embeddings, retrieval logs, and schema versions. The object store holds raw uploads and final output JSON. LangSmith (optional) traces every graph invocation.
+- **API + Dashboard.** FastAPI exposes ingestion, document detail, search, review, schema proposals, and query endpoints. A 7-page Streamlit dashboard (upload, documents, search, review queue, schema proposals, analytics, knowledge map) talks to the API exclusively through a typed client, never `requests` directly.
+
+## Agent stack
+
+Every agent returns the same shape: `AgentResult(success, confidence, data, reason, tool_calls_made, verification_passed)`.
+
+| Agent               | Role                                                                                                                 |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `classify_agent`    | Sends raw bytes to Gemini, returns `doc_type` + confidence                                                           |
+| `extract_agent`     | Structured extraction against the active schema, with self-consistency voting and a deterministic verifier tool loop |
+| `schema_diff_agent` | Loose, schema-free extraction compared against the active schema to catch fields the schema doesn't know about yet   |
+| `llm_client`        | Thin wrapper over Gemini: `generate`, `embed`, `generate_with_tools`                                                 |
+
+`extract_agent` runs in three phases:
+
+1. **Structured extraction.** Load the active schema, build a prompt from its fields plus RAG context, and validate the model's output against a Pydantic model.
+2. **Self-consistency voting.** Only triggers when confidence lands in an ambiguous band (0.60 to 0.85). Runs two more extraction passes and takes a per-field mode vote, breaking ties by the highest-confidence sample.
+3. **Verifier tool loop.** For document types with deterministic checks (passport, bank statement), Gemini calls out to real verifier functions (MRZ checksum, balance arithmetic) via `generate_with_tools`, and the result is stored as `verification_passed`.
+
+## Truth Engine
+
+The Truth Engine is the sole authority over extraction quality, replacing an earlier rule-based validator. It produces a `TruthReport`:
+
+- Required-field coverage score, plus any missing or unexpected fields.
+- One `VerificationReport` per applicable deterministic verifier.
+- A composite `final_confidence` score.
+- A `PersistenceDecision`: whether to allow completion, embedding, and learning, and what the document's terminal status should be.
+
+| Document type  | Verifiers                                             |
+| -------------- | ----------------------------------------------------- |
+| Passport       | MRZ checksum, date consistency                        |
+| Bank statement | Balance arithmetic, statement period ordering         |
+| GST invoice    | GSTIN checksum, invoice total consistency             |
+| Salary slip    | Gross consistency, PAN validation                     |
+| ITR            | PAN validation, assessment/financial year consistency |
+| Property deed  | Deed date consistency                                 |
+
+<Callout type="insight" title="Engineering Decision">
+  Balance arithmetic uses the running balance column from the last transaction row as the closing
+  balance, rather than summing every debit and credit. Summing double-counts the "Opening Balance"
+  row that most LLM extractions include as if it were a real transaction. Falling back to a sum only
+  happens when no running balance column exists at all.
+</Callout>
+
+## Resolution Engine
+
+The `ResolutionPlanner` turns a `TruthReport` into one concrete strategy, and the `StrategyExecutor` applies its side effects to pipeline state before the next pass.
+
+| Strategy            | Selected when                            | Side effect applied           |
+| ------------------- | ---------------------------------------- | ----------------------------- |
+| `ACCEPT`            | Truth Engine allows completion           | None, proceeds to normalize   |
+| `RETRY`             | Below threshold, retries remain          | None, re-runs extraction      |
+| `PROMPT_REFINEMENT` | Field coverage suggests a prompt issue   | A rewritten prompt            |
+| `BETTER_RETRIEVAL`  | RAG context wasn't relevant              | New retrieval queries         |
+| `IMAGE_PREPROCESS`  | Low image quality detected               | Rasterized/preprocessed bytes |
+| `MODEL_ESCALATION`  | Persistent failure                       | Override to a stronger model  |
+| `HITL`              | Retries exhausted or human required      | Routes to `op_b_hitl`         |
+| `REJECT`            | No recovery path (e.g. unknown doc type) | Skips straight to persist     |
+
+## Schema system
+
+Schemas aren't hardcoded. Every document type has a versioned schema, bootstrapped from static YAML and owned at runtime by Postgres.
+
+- **Bootstrap.** `config/schemas/<doc_type>.yaml` defines fields and a `universal_mapping`. Seeded into the database once, on first deploy, and never mutated afterward.
+- **Runtime source of truth.** The `schema_versions` table holds every version of every schema, with a partial unique index guaranteeing exactly one active row per document type. Loading a schema checks the active database row first and only falls back to YAML if none exists.
+- **Auto-discovery.** `schema_diff_agent` runs before every retry pass, comparing a loose extraction against the active schema (fuzzy match threshold 0.82). A meaningful diff produces a new schema version and a pending `SchemaProposalRecord` for human approval, rather than silently drifting.
+- **Universal schema.** Every completed document also maps to three canonical fields (`holder_name`, `id_number`, `expiry_date`) regardless of document type, so search and analytics don't need to know about nine different schemas.
+
+Eight document types are supported today: passport, bank statement, driving license, Aadhaar, GST invoice, salary slip, ITR, and property deed.
+
+## RAG and retrieval
+
+- Every completed document gets its extracted fields embedded (Gemini, 768 dimensions) and stored in `pgvector`.
+- Extraction and retry both query similar documents of the same type before calling the LLM, and the results get prepended to the prompt as few-shot examples.
+- Every retrieval that actually influences an extraction is logged as a `retrieval_logs` row, which doubles as the edge list for a force-directed knowledge graph in the dashboard. This is deliberately not a precomputed similarity matrix: it only records retrievals that were actually used, so the graph reflects real usage, not a synthetic distance plot.
+
+## Human-in-the-loop
+
+- Triggered by `op_b_hitl`, which calls LangGraph's `interrupt()`. The graph suspends and the full state is checkpointed, so the review can happen minutes or days later without losing anything.
+- A reviewer sees the extracted fields straight from the checkpoint (not the document row, which is still empty at this point) and submits an approve/reject decision with optional per-field corrections.
+- The decision resumes the graph exactly where it paused. Both outcomes still flow through `normalize`, because the universal schema has to exist for every document regardless of whether it was approved, for search and analytics to stay consistent.
+- Approval overrides any verifier failures and forces a `completed` status; rejection forces `rejected`, regardless of what the Truth Engine said.
+
+## Persistence
+
+Writes happen in four ordered phases, so a failure partway through never leaves the system in a half-written state:
+
+1. **Audit rows.** Document fields, confidence logs, the Truth Engine's audit trail, the resolution decision, and any schema proposal, all committed together.
+2. **Object store.** The final universal-schema JSON is written out.
+3. **Embedding.** Only if the Truth Engine's `PersistenceDecision` allows learning from this document.
+4. **Terminal status.** The document's final status is set last, so it can never appear "completed" before everything else has actually landed.
+
+Any failure in this sequence rolls back and marks the document `persist_failed` rather than leaving it in an ambiguous state.
+
+## Observability and recovery
+
+- **LangSmith** traces every graph invocation when configured: node latency, token counts, tool calls, and which conditional edge was taken.
+- **Confidence logs** record one row per agent per run, queryable per document or as a timeline.
+- **Phase tracking** stamps `current_phase` at every node, giving a lightweight in-database timeline without a separate events table.
+- **Startup recovery** scans for documents stranded mid-pipeline (from a crash or restart) and re-queues them automatically when the API starts.
+
+## Stack
+
+| Layer             | Choice                                             |
+| ----------------- | -------------------------------------------------- |
+| Orchestration     | LangGraph, Postgres-backed checkpointing           |
+| API               | FastAPI                                            |
+| Models            | Gemini (generation, tool use, embeddings)          |
+| Storage           | PostgreSQL + pgvector, MinIO (local) / GCS (cloud) |
+| Dashboard         | Streamlit                                          |
+| Deployment target | GCP (Cloud Run, Pub/Sub, Cloud SQL)                |
+
+<Callout type="insight" title="Engineering Decision">
+  LangGraph was chosen specifically because the pipeline needs state that survives across HTTP
+  requests for human review, retry loops with shared counters, and conditional branching, all with
+  Postgres-backed checkpointing and an `interrupt()` primitive built in rather than hand-rolled.
+</Callout>

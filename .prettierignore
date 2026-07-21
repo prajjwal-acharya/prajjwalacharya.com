@@ -1,0 +1,6 @@
+.velite
+.next
+.open-next
+.wrangler
+node_modules
+pnpm-lock.yaml

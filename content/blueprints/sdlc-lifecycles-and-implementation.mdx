@@ -1,0 +1,181 @@
+---
+id: BLD-001
+title: "Implementing SDLC: From Idea to Production"
+description: An engineering playbook for the software development lifecycle. What each phase actually produces, why skipping it costs more later, and how it plays out end to end in a real automation project.
+revision: "2.0"
+status: published
+date: 2026-07-21
+crossRefs: ["SYS-002"]
+slug: sdlc-lifecycles-and-implementation
+---
+
+## Introduction
+
+Every engineering student has seen the diagram: Requirements, Design, Development, Testing, Deployment, Maintenance, six boxes on the first slide of a course. It looks like exam material, so most developers dismiss it as theory with nothing to do with how software actually gets built.
+
+That's a mistake. Every project that survives contact with production, from Google to a solo freelancer, moves through these same stages. Agile compresses the loop to weeks and DevOps to hours, but the lifecycle itself doesn't disappear. You can't write correct code without knowing what "correct" means, can't build a system without deciding its shape first, and can't keep it alive without someone owning it after launch.
+
+The real failure isn't that engineers ignore SDLC. It's that they run it unconsciously, skipping steps without realizing what those steps were protecting them from, then paying for it months later as an incident nobody can explain. Here's what each phase actually does, what it produces, and how they chain together in a real project.
+
+## Why SDLC Exists
+
+Software engineering isn't "writing code." Writing code is one activity inside a larger problem: coordinating people and managing risk so the thing still works after its original author has moved on. Left unmanaged, that turns into unclear objectives, duplicated work, an architecture rewritten halfway through, and releases that fail because nobody planned for failure.
+
+SDLC isn't a bureaucratic ritual. It's a risk reduction framework, and each phase removes one category of risk before it compounds into something more expensive.
+
+| Phase        | Risk Reduced               |
+| ------------ | -------------------------- |
+| Requirements | Building the wrong product |
+| Design       | Poor architecture          |
+| Development  | Incorrect implementation   |
+| Testing      | Hidden defects             |
+| Deployment   | Release failures           |
+| Maintenance  | Long term degradation      |
+
+<Callout type="insight" title="Engineering Decision">
+  Skip a phase and you don't skip its risk, you inherit it later in a harder, more expensive form. A
+  missing requirement becomes a mid development scope change. A skipped design pass becomes a
+  rewrite six weeks in.
+</Callout>
+
+## SDLC Is Not Waterfall
+
+A lot of the "SDLC is outdated" belief comes from confusing the lifecycle with one specific way of running it, usually Waterfall, where each phase finishes fully before the next begins.
+
+SDLC answers what activities happen: requirements get gathered, a design gets produced, code gets written, the system gets verified, it ships, it gets kept alive. Methodology answers how those activities happen, in what order and at what frequency. Waterfall runs the six phases once, sequentially. Agile and Scrum compress a version inside every sprint. Kanban runs them as continuous flow. DevOps and CI/CD automate the seams between them so the loop can run several times a day.
+
+Whichever you pick, the six activities don't go away. What changes is the frequency of the loop, not whether it exists. Production reality (a bug, a bottleneck, user feedback) constantly re-informs requirements, which is what keeps the whole thing a cycle rather than a one-time plan.
+
+## Understanding Every Stage
+
+### 4.1 Requirements Engineering
+
+Establish what problem is being solved and for whom, before any design or code exists to bias the solution.
+
+**Activities.** Problem discovery, separating functional requirements from non-functional ones (latency, security, availability), identifying constraints, writing user stories, defining acceptance criteria, and scoping what this version will not do.
+
+**Deliverables.** A PRD, user stories, acceptance criteria that testing will later validate against.
+
+**People.** Product managers, engineering leads, end users where possible.
+
+A request like "let developers provision GCP resources without manual approvals" isn't a requirement, it's a wish. Turned into something testable it becomes several concrete statements: requests against a pre approved catalog auto provision within two minutes, anything outside the catalog routes to a human, every resource is tagged with an audit trail, and there's a cost ceiling per team. That's a checklist a tester can verify. The original sentence wasn't.
+
+### 4.2 System Design
+
+Decide the shape of the system on paper, where changing your mind costs an afternoon, instead of in code where it costs a rewrite.
+
+**Activities.** High level architecture, API and database design, sequence diagrams for the critical paths, an explicit pass through failure scenarios, and weighing tradeoffs between technology choices instead of picking the first one.
+
+**Deliverables.** Architecture diagrams, API contracts, a schema, a risk analysis, and a decision log recording why a choice was made, not just what it was.
+
+Good architecture doesn't make today faster. It makes the next six months faster, because nobody has to re-derive a decision that was already made deliberately.
+
+<Callout type="warning" title="Common Pitfall">
+  Designing while coding feels efficient because typing feels like progress. In practice the first
+  component built becomes the accidental reference implementation everyone else copies, and
+  tradeoffs get locked in by accident instead of by decision.
+</Callout>
+
+### 4.3 Development
+
+Turn the approved design into working code without silently re-deciding the design along the way.
+
+**Activities.** Breaking the system into modules that map to the design, git branching, code review, CI, and building reusable components instead of copy pasting logic across services.
+
+**Deliverables.** Working code, pull requests, documentation, build artifacts.
+
+Development should follow the approved design strictly. If it turns out the design was wrong, that's a design conversation to have openly, not a silent deviation that leaves the diagram and the code telling two different stories.
+
+### 4.4 Testing
+
+Find the gap between what the system was built to do and what it actually does, before a user finds it.
+
+**Activities.** Unit, integration, and system testing, regression testing, performance and security testing, and user acceptance testing against the original requirements.
+
+Verification asks whether you built the system right. Validation asks whether you built the right system. A system can pass every verification check and still fail validation if the original requirement was misunderstood, which is why testing has to trace back to the acceptance criteria from 4.1, not just the design from 4.2.
+
+**Deliverables.** Test reports, coverage reports, a triaged bug tracker.
+
+### 4.5 Deployment
+
+Get verified code into production without turning "verified" into "verified, until it met real traffic."
+
+**Activities.** Choosing a release strategy (blue green, canary, rolling), building the CI/CD pipeline, writing a rollback plan before you need one, and wiring up monitoring and alerting so a problem shows up on a dashboard, not from a user's complaint.
+
+**Deliverables.** A working pipeline, release notes, infrastructure configuration, monitoring dashboards built before launch.
+
+A system is production ready when someone other than its author can tell, at 2am, whether it's healthy, and act on that without reading the source code first.
+
+<Callout type="warning" title="Common Pitfall">
+  Deploying without a rollback plan treats the deploy as the finish line. The plan is cheapest to
+  write while the system is calm, not at midnight mid incident trying to remember the last known
+  good version.
+</Callout>
+
+### 4.6 Maintenance
+
+Keep the system correct, secure, and useful for as long as it runs, which is almost always far longer than it took to build.
+
+**Activities.** Bug fixing, performance tuning as real usage emerges, incident response, refactoring, dependency and security patching, and paying down technical debt deliberately.
+
+Software is never "finished." Maintenance is typically where most of a system's total lifetime and cost actually live. Incidents and feedback gathered here are the raw material that reopens requirements for the next iteration, closing the loop from Section 3.
+
+## End-to-End Case Study
+
+A platform built to automate cloud resource provisioning that had previously run through manual tickets and approvals.
+
+**Requirements.** Developers were waiting one to three days for infrastructure they needed immediately, because every request, routine or not, went through a manual queue. Stakeholder conversations surfaced the real goal: cut routine provisioning time from days to minutes without losing oversight on anything unusual. That produced measurable targets: 90% of requests auto approved within two minutes, zero unauthorized resource types without review, a full audit trail. Scope stayed narrow for version one, a fixed catalog of pre approved resource types.
+
+**Design.** The architecture split into a request intake API, a policy engine, and a provisioning executor. The policy engine evaluated requests against the catalog and a cost budget, auto approving what qualified and routing everything else to a human queue.
+
+<Callout type="insight" title="Engineering Decision">
+  The policy engine stayed a separate service from the provisioning executor, even though bundling
+  them would have been faster to build. Policy changes needed to ship without redeploying, or
+  risking, the code that talks to production infrastructure. That cost a bit of extra plumbing up
+  front and paid for itself the first time a policy needed an emergency change.
+</Callout>
+
+An explicit failure scenario pass asked what happens if the cloud provider's API times out mid provision, which is why the executor was built idempotent so a retry couldn't create duplicate resources.
+
+**Development.** The system split into three independently deployable services matching the design. The intake API shipped first behind a feature flag with a hardcoded policy, then the full rules engine replaced the stand in. When a reviewer found a case the design hadn't covered, concurrent requests for the same resource name, that went back to design as an update rather than a silent patch.
+
+**Testing.** Coverage included workflow correctness, permission handling, and the failure scenarios from the design's risk analysis: timeouts, partial failures, duplicate submissions. Edge cases mattered more than the happy path, including what happens when a request is one dollar over budget or the approval queue itself is down. Performance testing confirmed the two minute SLA held under simulated peak load.
+
+**Deployment.** The rollout was staged: a two week pilot with one team running alongside the old manual process as a fallback, then a phased rollout team by team. Monitoring was live from day one of the pilot, and a documented rollback path existed before it was ever needed.
+
+**Maintenance.** Teams requested new resource types added to the catalog, the cost ceiling logic got refined after early false positives blocked legitimate requests, and a quarterly review reassessed which resource types belonged in the auto approved tier. Feedback on which manual approvals were still the biggest bottleneck became the requirements input for the platform's next iteration.
+
+Every phase fed the next directly. Requirements' acceptance criteria became testing's checklist. Design's failure scenario analysis became testing's edge case list. The service boundary decision from design made maintenance's policy updates cheap instead of risky.
+
+## Common Mistakes
+
+| Mistake                           | Why It Happens                                 | The Fix                                                    |
+| --------------------------------- | ---------------------------------------------- | ---------------------------------------------------------- |
+| Skipping documentation            | Feels like it slows down "real" work           | Treat a decision log as part of the design deliverable     |
+| Designing while coding            | Typing feels like progress, sketching doesn't  | Timebox a short design pass before the first line of code  |
+| Changing requirements mid build   | Saying yes feels easier than pushing back      | Treat any new requirement as a re-scoping conversation     |
+| Testing only the happy path       | Testing feels cuttable under deadline pressure | Use the original acceptance criteria as the test checklist |
+| Deploying without a rollback plan | The deploy itself feels like the finish line   | Write the rollback plan alongside the pipeline             |
+| No monitoring                     | Feels like it can be added later               | Treat basic dashboards as launch blocking                  |
+| No clear ownership after launch   | Everyone assumes it's someone else's job       | Name an owner before launch                                |
+
+## Practical Blueprint
+
+**Before starting:** problem statement written down, objectives are measurable, constraints are explicit, stakeholders have reviewed it.
+
+**Before designing:** requirements are approved, edge cases are identified, dependencies on other systems are known.
+
+**Before development:** architecture reviewed by someone other than its author, work broken into estimated tasks, documentation exists alongside the design.
+
+**Before deployment:** testing complete against the original acceptance criteria, monitoring configured, rollback plan understood by whoever's on call.
+
+**Before closing out:** documentation reflects what was actually built, lessons are recorded somewhere they'll be read again, the backlog is refined with what maintenance surfaced.
+
+## Key Takeaways
+
+- SDLC is a decision making framework, not a documentation exercise.
+- Every phase reduces a specific risk. Skip it and you inherit that risk later, more expensively.
+- The cost of a mistake grows sharply the later it's discovered.
+- Agile and DevOps change the cadence of SDLC, not its necessity.
+- Documentation, testing, deployment, and maintenance are engineering responsibilities, not optional extras.
+- A disciplined lifecycle produces more reliable and maintainable software than ad hoc development, because each phase catches something the others can't.
