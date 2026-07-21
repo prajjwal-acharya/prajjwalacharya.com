@@ -41,7 +41,7 @@ velite.config.ts    Content schemas and MDX pipeline
 
 ## Development
 
-Requires Node 20+ and [pnpm](https://pnpm.io).
+Requires Node 22+ and [pnpm](https://pnpm.io).
 
 ```bash
 pnpm install
@@ -56,7 +56,16 @@ pnpm typecheck       # type-check (also rebuilds content first)
 pnpm lint            # eslint
 pnpm format          # prettier
 pnpm build           # production build
+pnpm verify          # format:check + lint + typecheck + build — what CI runs
 ```
+
+### Pre-commit hooks
+
+Husky + lint-staged run on every commit: staged files are formatted with Prettier (and linted with ESLint for JS/TS) before the commit completes. Hooks are installed automatically via the `prepare` script after `pnpm install`.
+
+## Continuous Integration
+
+Every push and pull request to `main` runs `pnpm verify` (format check, lint, typecheck, build) via GitHub Actions — see `.github/workflows/ci.yml`.
 
 ## Deployment
 
