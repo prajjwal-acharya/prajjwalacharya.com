@@ -19,14 +19,48 @@ It's not a typical "hero + project cards" portfolio. The site is organized aroun
 
 Content lives as MDX files under `content/`, validated against schemas in `velite.config.ts`. Systems and Blueprints use immutable, sequential IDs (`SYS-###`, `BLD-###`) — see that config for the numbering policy.
 
+## Architecture
+
+Every MDX file is compiled entirely at build time — Velite owns metadata, `@next/mdx` owns rendering, and nothing touches an MDX document at request time:
+
+```
+MDX Content
+     │
+     ├── Velite
+     │      ├── Metadata
+     │      ├── TOC
+     │      ├── Reading Time
+     │      └── Content Index
+     │
+     └── Next.js MDX
+            └── Static React Components
+                     │
+                     ▼
+                App Router
+                     │
+                     ▼
+                 OpenNext
+                     │
+                     ▼
+             Cloudflare Workers
+```
+
+Velite reads each MDX file's frontmatter into typed, validated metadata (title, status, dates, TOC, reading time, cross-references) and indexes every collection. `@next/mdx` separately compiles each file's body into a plain React component at build time, using the same remark/rehype pipeline (heading anchors, syntax highlighting) so the two never drift apart. Route pages read metadata from Velite and render the matching compiled component — both are static build artifacts, and MDX is compiled entirely at build time to ensure compatibility with Cloudflare Workers, with no runtime code generation.
+
 ## Stack
 
+**Content**
+
 - **Next.js 15** (App Router) + **React 19**
-- **Velite** — type-safe content layer that compiles MDX + frontmatter into typed data at build time
+- **MDX** via **@next/mdx** — compiles each `content/**/*.mdx` file into a static React component at build time
+- **Velite** — type-safe metadata layer: frontmatter validation, TOC, reading time, content index
+- **Shiki** via `rehype-pretty-code` for syntax highlighting, `rehype-slug` for heading anchors/TOC
 - **Tailwind CSS 4**
 - **shadcn/ui**-style components (`class-variance-authority`, Radix Slot) in `components/ui`
-- **Shiki** via `rehype-pretty-code` for syntax highlighting, `rehype-slug` for heading anchors/TOC
-- Deployed to **Cloudflare Pages/Workers** via `@opennextjs/cloudflare`
+
+**Deployment**
+
+- **OpenNext** (`@opennextjs/cloudflare`) + **Cloudflare Workers**
 
 ## Project structure
 
@@ -36,7 +70,8 @@ components/         Shared UI components and page sections
 content/            MDX content collections
 lib/                Utilities, metadata, RSS, helpers
 public/             Static assets
-velite.config.ts    Content schemas and MDX pipeline
+scripts/            Build-time codegen (MDX component registry)
+velite.config.ts    Content schemas and metadata pipeline
 ```
 
 ## Development
@@ -51,12 +86,27 @@ pnpm dev            # start the dev server
 Other useful scripts:
 
 ```bash
-pnpm content:build   # rebuild the Velite content layer from content/
-pnpm typecheck       # type-check (also rebuilds content first)
-pnpm lint            # eslint
-pnpm format          # prettier
-pnpm build           # production build
-pnpm verify          # format:check + lint + typecheck + build — what CI runs
+pnpm content:build         # rebuild the Velite content layer from content/
+pnpm generate:mdx-registry # regenerate the static MDX component registry
+pnpm typecheck             # type-check (also rebuilds content + registry first)
+pnpm lint                  # eslint
+pnpm format                # prettier
+pnpm build                 # production build
+pnpm verify                # format:check + lint + typecheck + build — what CI runs
+```
+
+`pnpm build` (and `pnpm dev`) run the full content pipeline automatically:
+
+```
+MDX
+  ↓
+Velite
+  ↓
+Registry Generation
+  ↓
+Next Build
+  ↓
+OpenNext
 ```
 
 ### Pre-commit hooks

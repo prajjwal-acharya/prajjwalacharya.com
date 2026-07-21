@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { PrevNext } from "@/components/content/prev-next";
 import { TableOfContents } from "@/components/content/table-of-contents";
 import { Section } from "@/components/layout/section";
-import { MDXContent } from "@/components/mdx";
+import { Prose } from "@/components/mdx/prose";
 import { JsonLd } from "@/components/seo/json-ld";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { siteConfig } from "@/lib/config";
+import { getBlueprintsComponent } from "@/.generated/mdx/blueprints-registry";
 import { getAdjacentBlueprints, getBlueprintBySlug, getBlueprints } from "@/lib/content";
 import { articleJsonLd, breadcrumbJsonLd } from "@/lib/json-ld";
 import { buildMetadata } from "@/lib/metadata";
@@ -43,6 +44,8 @@ export default async function BlueprintPage({ params }: BlueprintPageProps) {
 
   const { prev, next } = getAdjacentBlueprints(slug);
   const url = `${siteConfig.url}/blueprints/${blueprint.slug}`;
+  const Body = getBlueprintsComponent(blueprint.slug);
+  if (!Body) notFound();
 
   return (
     <div className="drafting-grid relative">
@@ -103,7 +106,11 @@ export default async function BlueprintPage({ params }: BlueprintPageProps) {
 
           {/* Drop-cap only the article's opening paragraph: `> div > p:first-of-type` restricts the match to a direct child of Prose's wrapper div (the first heading may come before it in the DOM, hence `:first-of-type` over `:first-child`), so it never reaches into a nested Callout's own paragraphs the way an unscoped `p:first-of-type` would. */}
           <div className="[&>div>p:first-of-type]:first-letter:font-display [&>div>p:first-of-type]:first-letter:text-primary text-lg [&>div>p:first-of-type]:first-letter:float-left [&>div>p:first-of-type]:first-letter:mr-3 [&>div>p:first-of-type]:first-letter:text-7xl [&>div>p:first-of-type]:first-letter:font-bold">
-            <MDXContent code={blueprint.body} proseClassName="max-w-none" />
+            <Body
+              components={{
+                wrapper: ({ children }) => <Prose className="max-w-none">{children}</Prose>,
+              }}
+            />
           </div>
 
           {blueprint.crossRefs.length > 0 ? (

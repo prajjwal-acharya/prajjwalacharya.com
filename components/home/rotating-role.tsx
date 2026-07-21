@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const ROTATING_WORDS = ["intelligent infrastructure", "backend systems", "developer tools"];
+const ROTATING_WORDS = ["intelligent infra", "backend systems", "developer tools"];
 
 /** Cycles through the words after "Building" every 2s with a cross-fade. */
 export function RotatingRole() {

@@ -13,6 +13,7 @@ const eslintConfig = [
   {
     ignores: [
       ".velite/**",
+      ".generated/**",
       ".next/**",
       ".open-next/**",
       ".wrangler/**",

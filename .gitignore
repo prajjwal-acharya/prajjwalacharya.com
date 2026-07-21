@@ -8,6 +8,9 @@ out/
 # velite
 .velite/
 
+# generated MDX registries (scripts/generate-mdx-registry.mjs)
+.generated/
+
 # cloudflare
 .open-next/
 .wrangler/

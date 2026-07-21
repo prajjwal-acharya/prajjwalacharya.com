@@ -97,6 +97,11 @@ export default defineConfig({
             )
             .default([]),
           slug: s.slug("systems"),
+          // Extension-less path relative to `content/` (e.g. `systems/extract-it`)
+          // — the single source of truth `scripts/generate-mdx-registry.mjs`
+          // reads to resolve each slug to its `.mdx` file, instead of
+          // re-deriving that mapping itself.
+          path: s.path(),
           toc: tocField(),
           raw: s.raw(),
           body: s.mdx(),
@@ -121,6 +126,8 @@ export default defineConfig({
           heroImage: s.image().optional(),
           crossRefs: s.array(s.string()).default([]),
           slug: s.slug("blueprints"),
+          // Same reasoning as `systems.path` above.
+          path: s.path(),
           toc: tocField(),
           raw: s.raw(),
           body: s.mdx(),

@@ -4,9 +4,10 @@ import { EntryHeader } from "@/components/content/entry-header";
 import { PrevNext } from "@/components/content/prev-next";
 import { TableOfContents } from "@/components/content/table-of-contents";
 import { Section } from "@/components/layout/section";
-import { MDXContent } from "@/components/mdx";
+import { Prose } from "@/components/mdx/prose";
 import { JsonLd } from "@/components/seo/json-ld";
 import { siteConfig } from "@/lib/config";
+import { getSystemsComponent } from "@/.generated/mdx/systems-registry";
 import { getAdjacentSystems, getSystemBySlug, getSystems } from "@/lib/content";
 import { articleJsonLd, breadcrumbJsonLd } from "@/lib/json-ld";
 import { buildMetadata } from "@/lib/metadata";
@@ -42,6 +43,8 @@ export default async function SystemPage({ params }: SystemPageProps) {
 
   const { prev, next } = getAdjacentSystems(slug);
   const url = `${siteConfig.url}/systems/${system.slug}`;
+  const Body = getSystemsComponent(system.slug);
+  if (!Body) notFound();
 
   return (
     <div className="drafting-grid relative">
@@ -74,7 +77,11 @@ export default async function SystemPage({ params }: SystemPageProps) {
           />
           {system.toc.length > 0 ? <TableOfContents items={system.toc} className="mt-10" /> : null}
           <div className="mt-10">
-            <MDXContent code={system.body} proseClassName="max-w-none" />
+            <Body
+              components={{
+                wrapper: ({ children }) => <Prose className="max-w-none">{children}</Prose>,
+              }}
+            />
           </div>
         </div>
         <PrevNext basePath="/systems" prev={prev} next={next} className="mt-16" />

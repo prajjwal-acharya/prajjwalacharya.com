@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
+import CurrentBuildBody from "@/content/current-build/index.mdx";
 import { EmptyState } from "@/components/content/empty-state";
 import { SectionHeader } from "@/components/content/section-header";
 import { TableOfContents } from "@/components/content/table-of-contents";
 import { Section } from "@/components/layout/section";
-import { MDXContent } from "@/components/mdx";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Icon } from "@/components/ui/icon";
 import { siteConfig } from "@/lib/config";
@@ -164,7 +164,7 @@ export default function CurrentBuildPage() {
 
             {currentBuild.body ? (
               <div className="max-w-prose">
-                <MDXContent code={currentBuild.body} />
+                <CurrentBuildBody />
               </div>
             ) : null}
           </div>

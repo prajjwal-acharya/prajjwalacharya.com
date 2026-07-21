@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-import * as runtime from "react/jsx-runtime";
 import { A } from "@/components/mdx/anchor";
 import { Callout } from "@/components/mdx/callout";
 import { Code, Pre } from "@/components/mdx/code-block";
@@ -45,36 +43,3 @@ export const mdxComponents = {
   ReferenceLink,
   Video,
 };
-
-type MDXContentProps = {
-  code: string;
-  /** Overrides the wrapping `Prose`'s max-width (e.g. `"max-w-none"` for a full-width card). Defaults to `Prose`'s own `max-w-prose`. */
-  proseClassName?: string;
-};
-
-/**
- * Executes Velite's compiled `s.mdx()` output. `s.mdx()` compiles to a
- * function-body string (not raw HTML or a bundled component) specifically
- * so components can be injected at render time instead of build time —
- * verified against Velite's docs before wiring this in, not assumed.
- * `new Function` only ever runs during `next build`'s static generation
- * (this site has no dynamic runtime rendering), so it never executes in
- * the Cloudflare Workers request path.
- */
-function getMDXComponent(code: string) {
-  const fn = new Function(code);
-  return fn({ ...runtime }).default;
-}
-
-export function MDXContent({ code, proseClassName }: MDXContentProps) {
-  const Component = getMDXComponent(code);
-  const components = proseClassName
-    ? {
-        ...mdxComponents,
-        wrapper: ({ children }: { children: ReactNode }) => (
-          <Prose className={proseClassName}>{children}</Prose>
-        ),
-      }
-    : mdxComponents;
-  return <Component components={components} />;
-}

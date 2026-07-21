@@ -6,6 +6,15 @@ export type { Blueprint, CurrentBuild, Philosophy, Stack, System } from "#velite
  * Pages should only ever read content through these accessors, never import
  * `#velite` directly — keeps Velite's raw output shape an implementation
  * detail (ARCHITECTURE.md §9).
+ *
+ * Rendered MDX bodies are deliberately *not* exposed here: the two detail
+ * pages import `.generated/mdx/*-registry` directly instead
+ * (`app/systems/[slug]/page.tsx`, `app/blueprints/[slug]/page.tsx`).
+ * Re-exporting the registries from this module measurably bloated every
+ * page that reads plain metadata through it (robots.txt, sitemap.xml, the
+ * feed routes, `/philosophy`, `/stack`, `/`) — importing the registry here
+ * pulled every MDX component, including the client-side code block, into
+ * pages that never render a body at all.
  */
 
 /** Oldest-first — the order prev/next adjacency (below) walks. */
