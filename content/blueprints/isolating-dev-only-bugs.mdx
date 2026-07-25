@@ -1,0 +1,112 @@
+---
+id: BLD-002
+title: "Isolating Dev-Only Bugs: A Field Guide From a Real Incident"
+description: An engineering playbook for debugging failures that only reproduce in one environment. What systematic isolation actually looks like, why plausible theories aren't evidence, and how it played out diagnosing two real bugs in this site's MDX pipeline.
+revision: "1.0"
+status: published
+date: 2026-07-25
+crossRefs: ["SYS-002"]
+slug: isolating-dev-only-bugs
+---
+
+## Introduction
+
+A page crashed. Only in `next dev`. Only on documents with real content. Never in production, never on the actual deployed runtime. The stack trace pointed at a React internal (`recentlyCreatedOwnerStacks`) that had nothing to do with anything in the codebase, and every plausible-sounding theory, a bad component, a race condition, an upstream framework regression, turned out to be wrong when actually tested.
+
+This is what debugging looks like when the bug doesn't announce itself. Not a stack trace pointing at a line of broken code, but a symptom with a dozen equally-plausible explanations and no obvious next step. The failure mode isn't lack of hypotheses, engineers rarely run out of ideas, it's mistaking a plausible hypothesis for a confirmed one and stopping there.
+
+Two separate, real bugs got found and fixed this way in the same session: a dev-server-only crash on every MDX content page, and a broken table renderer that had been silently producing garbled text instead of `<table>` markup. Neither was fixed by guessing well. Both were fixed by refusing to accept an explanation that hadn't been tested.
+
+## Why Systematic Isolation Matters
+
+A bug report is a symptom, not a diagnosis. "The page crashes" or "the table looks wrong" describes what a user sees, not what's broken. Between symptom and root cause sits a space full of theories that sound right: mismatched dependency versions, race conditions, upstream regressions, a bad recent commit. Most debugging time is lost not because no one has ideas, but because someone accepts the first idea that fits the symptom and stops testing.
+
+Systematic isolation is the discipline of treating every theory as a hypothesis to be tested, not a conclusion to be reported. Each test should remove exactly one variable and produce a binary result: the symptom persists, or it doesn't. Chain enough of these together and the space of possible causes shrinks fast, usually faster than continuing to reason abstractly about what "seems likely."
+
+<Callout type="insight" title="Engineering Decision">
+  Every theory tested in this incident sounded reasonable when proposed: a Next.js dev-mode
+  regression, a webpack watcher race condition, a duplicate React instance, an upstream MDX bug. All
+  were falsified by direct tests within minutes each. The lesson isn't that the theories were bad,
+  it's that a plausible theory and a confirmed one are different things, and only tests turn one
+  into the other.
+</Callout>
+
+## The Method
+
+### Reduce to the smallest failing case
+
+Strip the input down until it either stops failing (the removed part was load-bearing) or keeps failing at its simplest possible form (the removed part was never the cause). A content body reduced to a single word that still crashed ruled out every theory about specific MDX syntax, broken components, or malformed props in one step, instead of auditing each individually.
+
+### Build a minimal reproduction from scratch, structurally
+
+A bug that "always happens" in a large codebase but never in a small one narrows the search to what's different between them. Rebuilding the same architecture, piece by piece, in a clean environment (same framework version, same rendering pattern, same plugin chain) turns "somewhere in this repository" into a checklist: each piece either reproduces the bug when added or it doesn't.
+
+### Work backward from a known-good state
+
+If a minimal reproduction won't reproduce the bug no matter what's added, flip direction: start from the real, failing environment and strip pieces out until it stops failing. The two searches meet from opposite ends and are far more powerful together than either alone, especially when the cause turns out to be something neither side thought to test in isolation.
+
+### Bisect against history, not just code
+
+When a regression is suspected, the version history is itself a source of test cases. The commit that introduced a capability is usually a small, well-defined window, checking out the state immediately before that commit and confirming the bug's absence turns "we think this commit is responsible" into a tested fact, and licenses a much narrower search inside that one commit.
+
+### Distrust your own recent changes as much as anyone else's
+
+Debugging tools alter state. Installing a package to test a theory, reverting it, and moving on can leave an environment subtly different from where it started, an orphaned dependency, a stale cache, a half-reverted config value. Before trusting a result, verify the environment matches what it's supposed to, don't assume a revert was clean just because the intent was to revert.
+
+### Verify the fix under the actual failure condition, not a proxy for it
+
+A fix isn't confirmed by the change compiling, or by a typecheck passing, or by the fix "making sense." It's confirmed by rerunning the exact scenario that used to fail and watching it succeed, ideally after clearing every cache that could be hiding a stale result.
+
+## End-to-End Case Study
+
+**Symptom.** A newly added Systems page crashed every time it loaded in `next dev`, with a React-internals error that named no file or line in the actual codebase. Production builds and the real deployment target were unaffected.
+
+**First round of theories, tested and falsified.** A custom callout component was suspected first, removed, crash persisted. The page's markdown body was suspected next, reduced to a single word, crash persisted. A custom webpack plugin that regenerated build artifacts during development was suspected as a race condition, disabled entirely along with its file watchers, crash persisted. Every rehype and remark plugin in the MDX pipeline was removed one at a time and in combination, crash persisted. Framework and library patch versions were bumped, crash persisted. Every one of these was a reasonable thing to suspect. None of them were the cause.
+
+**The pivot: minimal reproduction.** Rather than continuing to strip the real codebase, a brand-new project was scaffolded from scratch with the exact same framework and library versions. Reproducing the architecture piece by piece, official page convention, then the project's actual pattern of importing content as components, then a dynamic route with the same lookup indirection, then the same plugin chain, none of it reproduced the crash. This was the turning point: it proved the bug wasn't a general framework issue, and wasn't explained by any single structural choice in the app's code.
+
+<Callout type="warning" title="Common Pitfall">
+  A clean minimal reproduction that fails to reproduce a bug is frequently misread as "the repro is
+  wrong" rather than as a real, informative result. It's exactly as valuable as a repro that
+  succeeds, it just points the investigation somewhere else instead of confirming a theory.
+</Callout>
+
+**Bisecting against history.** The commit that had introduced the current MDX architecture was identified from the project's history. Checking out the commit immediately before it, in an isolated worktree, and running the exact same page: no crash. The regression window was now a single, well-defined commit.
+
+**The decisive test.** Using the real project's actual dependency tree and configuration, a page built with the framework's standard file-based convention rendered cleanly. The exact same MDX content, imported as a component the way the rest of the site did it, crashed. That comparison, same dependencies, same plugins, same content, different only in which of two supported patterns was used, pointed directly at a single missing configuration value that told the framework's tooling to recognize that second pattern. Adding it fixed the crash immediately and was confirmed clean across every previously-failing page, with the dev cache cleared and the server restarted from nothing.
+
+**A second, unrelated bug, found by reading the actual output.** While verifying the fix, a table on the same page didn't look right. Rather than guessing, the rendered HTML was inspected directly, and the table markup wasn't there at all, the table's source syntax had been rendered as a literal paragraph of text. The markdown pipeline was missing the specific extension that adds table support to standard markdown, present in neither of the two places the pipeline was configured. Adding it in both, and confirming actual `<table>` elements appeared in the output afterward, closed it out.
+
+## Common Mistakes
+
+| Mistake                                          | Why It Happens                                         | The Fix                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Treating a plausible theory as a confirmed cause | It explains the symptom and feels like enough          | Test every theory; only a result that changes the outcome counts         |
+| Debugging the whole system instead of the delta  | The failing system is right there, the clean one isn't | Build the minimal reproduction; the delta is the answer                  |
+| Trusting a revert without checking it            | The intent to undo a change feels like undoing it      | Verify environment state directly, don't assume                          |
+| Reading a stack trace's file name too literally  | It's usually accurate                                  | Check whether the line number is even possible given the source          |
+| Declaring victory when the fix "makes sense"     | A satisfying explanation feels like confirmation       | Rerun the exact failing scenario, from a clean cache, before trusting it |
+| Stopping at the first bug found                  | Fixing something feels like finishing                  | Re-inspect the actual output; a fix can mask a second, unrelated bug     |
+
+## Practical Blueprint
+
+**Before theorizing:** the exact failure condition is reproduced reliably, and the exact symptom (error text, line, environment) is captured verbatim.
+
+**Before testing a theory:** it produces a specific, falsifiable prediction, not just "this seems related."
+
+**While isolating:** every test changes exactly one variable and is run against a clean cache or clean environment.
+
+**When a minimal reproduction won't reproduce the bug:** treat that as a real result, not a failed attempt, and use it to narrow the search rather than discard it.
+
+**When bisecting history:** confirm the bug's absence in the prior state directly, don't infer it from a diff.
+
+**Before calling it fixed:** rerun the original failing scenario from a clean state, and check the actual rendered output, not just that the process completed without error.
+
+## Key Takeaways
+
+- A plausible theory is not a confirmed cause. Only a test that changes the predicted outcome earns that.
+- Reducing to the smallest failing case eliminates whole categories of theories in a single step.
+- A clean minimal reproduction that fails to fail is informative, not wasted effort.
+- Version history is a source of test cases, not just a record, bisecting against it turns suspicion into a fact.
+- Debugging tools change state; verify an environment was actually restored rather than assuming it.
+- Fixing one bug doesn't mean the output is correct, re-inspect it before moving on.
