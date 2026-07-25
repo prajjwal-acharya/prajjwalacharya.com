@@ -1,5 +1,6 @@
 import rehypePrettyCode from "rehype-pretty-code";
 import rehypeSlug from "rehype-slug";
+import remarkGfm from "remark-gfm";
 import { defineConfig, s } from "velite";
 import { readingTimeFromRaw } from "./lib/reading-time";
 import { rehypeImageSize } from "./lib/rehype-image-size";
@@ -41,15 +42,20 @@ const blueprintId = s.string().regex(/^BLD-\d{3}$/, "Blueprint id must match BLD
 const tocField = () => s.toc({ minDepth: 2, maxDepth: 3 });
 
 /**
- * Shared MDX pipeline: heading IDs for anchor links (must run before/
- * alongside `s.toc()`'s slugging so `#anchor` hrefs actually resolve), and
- * build-time syntax highlighting via Shiki through rehype-pretty-code —
- * verified output structure empirically (figure/figcaption/pre/code with
- * data-language, data-theme, data-highlighted-line) before wiring it in,
- * not assumed from docs. `keepBackground: false` so the block's background
- * comes from our own `--color-surface` token, not the Shiki theme.
+ * Shared MDX pipeline: GFM (tables, strikethrough, autolinks) since plain
+ * CommonMark has no table syntax at all — a bare `| a | b |` block would
+ * otherwise render as a literal paragraph of pipe-delimited text instead
+ * of an actual `<table>`. Also heading IDs for anchor links (must run
+ * before/alongside `s.toc()`'s slugging so `#anchor` hrefs actually
+ * resolve), and build-time syntax highlighting via Shiki through
+ * rehype-pretty-code — verified output structure empirically
+ * (figure/figcaption/pre/code with data-language, data-theme,
+ * data-highlighted-line) before wiring it in, not assumed from docs.
+ * `keepBackground: false` so the block's background comes from our own
+ * `--color-surface` token, not the Shiki theme.
  */
 const mdxOptions = {
+  remarkPlugins: [remarkGfm],
   rehypePlugins: [
     rehypeSlug,
     [

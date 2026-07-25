@@ -1,0 +1,27 @@
+---
+id: SYS-002
+title: Repository Intelligence Graph
+status: research
+summary: A structured, automatically generated understanding of any repository, its services, APIs, modules, dependencies, ownership, and call paths, exposed through a CLI, SDK, and graph visualization. Currently in research, no architecture or code yet.
+date: 2026-07-25
+techStack: []
+links: [{ label: "GitHub · repo TBD", url: "https://github.com/prajjwal-acharya/" }]
+slug: repo-intelligence-platform
+---
+
+## Why it exists
+
+Understanding an unfamiliar repository still means reading code by hand: tracing imports, guessing at service boundaries, cross-referencing CI configs and Terraform to figure out what actually talks to what. RIG aims to generate that understanding automatically, turning a repository into a queryable graph instead of a pile of files.
+
+## What it aims to do
+
+Ingest a repository's source code, git history, dependency graph, CI/CD, Docker, Kubernetes, OpenAPI specs, database schema, Terraform, and configuration, then produce a service graph, API graph, module graph, dependency graph, ownership graph, and call graph from it. Delivered as a CLI and SDK for generating the graph, a visualization layer for exploring it, and an export API for feeding it into other tools.
+
+## Success metric
+
+Given any repository, generate an accurate engineering graph automatically.
+
+<Callout type="research" title="Research phase">
+  Currently exploring similar tools and prior art before committing to an architecture. No code
+  written yet, this page gets rewritten once the dev plan is finalized.
+</Callout>
