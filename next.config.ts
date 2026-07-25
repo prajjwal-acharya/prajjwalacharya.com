@@ -4,6 +4,7 @@ import type { NextConfig } from "next";
 import rehypePrettyCode from "rehype-pretty-code";
 import rehypeSlug from "rehype-slug";
 import remarkFrontmatter from "remark-frontmatter";
+import remarkGfm from "remark-gfm";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import { rehypeImageSize } from "./lib/rehype-image-size";
 
@@ -73,6 +74,15 @@ class ContentWebpackPlugin {
 }
 
 const nextConfig: NextConfig = {
+  // No route in this project is actually a `page.mdx` — every `.mdx` file is
+  // imported as a plain component through `.generated/mdx/*-registry.ts`
+  // instead. But without `mdx` registered here, `next dev`'s RSC dev overlay
+  // fails to recognize MDX-sourced components at all: any document with a
+  // real body crashes with `Cannot read properties of undefined (reading
+  // 'recentlyCreatedOwnerStacks')` the instant it renders, even though
+  // `next build` and the actual Cloudflare Worker are unaffected. Adding
+  // `mdx` here (despite no `page.mdx` existing) fixes the dev-mode crash.
+  pageExtensions: ["js", "jsx", "mdx", "ts", "tsx"],
   webpack: (config) => {
     config.plugins.push(new ContentWebpackPlugin());
     return config;
@@ -80,18 +90,19 @@ const nextConfig: NextConfig = {
 };
 
 /**
- * Same MDX pipeline as `velite.config.ts`'s `mdxOptions` (heading IDs +
- * Shiki highlighting + image size enforcement), so a document renders
- * identically whether Velite compiles it for `toc`/`readingTime` or
- * `@next/mdx` compiles it here for the actual component. `remarkFrontmatter`
- * is the one addition: unlike Velite (which parses frontmatter into typed
- * fields separately), a directly-imported `.mdx` file still has its raw
- * `---`-delimited block in the document, so it has to be stripped before
- * the body renders or it'd show up as literal text.
+ * Same MDX pipeline as `velite.config.ts`'s `mdxOptions` (GFM tables +
+ * heading IDs + Shiki highlighting + image size enforcement), so a
+ * document renders identically whether Velite compiles it for
+ * `toc`/`readingTime` or `@next/mdx` compiles it here for the actual
+ * component. `remarkFrontmatter` is the one addition: unlike Velite
+ * (which parses frontmatter into typed fields separately), a
+ * directly-imported `.mdx` file still has its raw `---`-delimited block
+ * in the document, so it has to be stripped before the body renders or
+ * it'd show up as literal text.
  */
 const withMDX = createMDX({
   options: {
-    remarkPlugins: [remarkFrontmatter],
+    remarkPlugins: [remarkFrontmatter, remarkGfm],
     rehypePlugins: [
       rehypeSlug,
       [
