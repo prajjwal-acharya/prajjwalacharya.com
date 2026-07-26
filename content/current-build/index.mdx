@@ -2,57 +2,60 @@
 title: Current Build
 description: A living snapshot of what's actively being built, learned, and read.
 building:
-  - "Repository Intelligence Graph"
+  - "rig — Repository Intelligence Graph"
 learning:
-  - "Similar products and repos"
-  - "3rd party adapter config"
+  - "Profiling and optimizing the analysis pipeline"
+  - "Building a public-repo test corpus"
 reading:
   - "Designing Data-Intensive Applications"
 thinkingAbout:
   - "How much of a personal site should read as a dashboard versus a diary"
-nextMilestone: "Finalize the dev plan and set up the repo."
-updatedAt: 2026-07-25
+nextMilestone: "Test rig against a suite of publicly available repos, then improve analysis performance on the current pipeline overhead."
+updatedAt: 2026-07-27
 activeProject:
-  name: Repository Intelligence Graph
-  summary: A CLI and graph generator that automatically builds a structured engineering graph (service, API, module, dependency, ownership, call) from any repository. Currently in research, scope and architecture not yet locked.
-  completion: 5
-  branch: planning/repo-intelligence-graph
+  name: rig
+  summary: A working end-to-end repo intelligence pipeline — scanning, plugins, language detection, a Tree-sitter parser framework (Go implemented), and a compiler-style IR → symbols → references → types → graph → analysis chain, all wired into a single CLI with test coverage across the board.
+  completion: 40
+  branch: main
   lastCommit: "—"
   uptime: "—"
-  releaseNote: Still in research — no implementation yet.
-  stage: Research
+  releaseNote: Core pipeline and Go/Tree-sitter support are working end-to-end; broader language support, real-world validation, and performance work are next.
+  stage: Active Development
+  repoUrl: "https://github.com/prajjwal-acharya/rig"
 challenges:
   - priority: medium
-    ticket: "#0001"
-    title: Finalizing the dev plan for the Repository Intelligence Graph.
-  - priority: low
-    ticket: "#0002"
-    title: Setting up the repo once the plan is locked.
+    ticket: "#0003"
+    title: Test rig against a suite of publicly available repositories.
+    note: Validate scanning, parsing, and analysis accuracy end-to-end outside the dev environment.
+  - priority: critical
+    ticket: "#0004"
+    title: Improve analysis performance on the current pipeline overhead.
+    note: The IR → symbols → references → types → graph → analysis chain needs to get faster on larger repos.
 terminalLog:
   - prompt: true
     tone: default
-    text: "cat docs/rig/scope.md"
+    text: "rig scan . && rig analyze . --all"
   - tone: info
-    text: "Status: research — exploring similar products and repos"
+    text: "Pipeline: scanner -> parsers (tree-sitter/go) -> ir -> symbols -> references -> types -> graph -> analysis"
   - prompt: true
     tone: default
-    text: "git log --oneline -1"
-  - tone: warn
-    text: "No commits yet on planning/repo-intelligence-graph"
+    text: "pytest -q"
+  - tone: info
+    text: "All suites passing: scanner, plugins, languages, parsers, ir, symbols, references, types, graph, analysis, cli"
 readingProgress:
   title: Designing Data-Intensive Applications
   author: Martin Kleppmann
   progressLabel: "Ch. 09 — Consistency"
   percent: 74
 learningProgress:
-  - topic: Similar products and repos
-    note: Surveying existing repo-graph and code-intelligence tools before locking scope.
+  - topic: Performance profiling & optimization
+    note: Studying where the analysis pipeline spends time on larger repos ahead of an efficiency pass.
+    percent: 20
+  - topic: Public repo test corpus
+    note: Assembling a suite of public repos to validate scanning/parsing/analysis accuracy end-to-end.
     percent: 15
-  - topic: 3rd party adapter config
-    note: Evaluating config/integration approaches before locking scope.
-    percent: 10
 recentProgress:
-  - date: 2026-07-25
-    title: Early planning for the Repository Intelligence Graph
-    tags: ["PLANNING"]
+  - date: 2026-07-27
+    title: "End-to-end pipeline working: scanner, plugins, language layer, Tree-sitter parser framework (Go), and the full IR → symbols → references → types → graph → analysis chain, plus a complete CLI with test coverage throughout"
+    tags: ["MILESTONE"]
 ---

@@ -1,11 +1,11 @@
 ---
 id: SYS-002
 title: Repository Intelligence Graph
-status: research
-summary: A structured, automatically generated understanding of any repository, its services, APIs, modules, dependencies, ownership, and call paths, exposed through a CLI, SDK, and graph visualization. Currently in research, no architecture or code yet.
-date: 2026-07-25
-techStack: []
-links: [{ label: "GitHub · repo TBD", url: "https://github.com/prajjwal-acharya/" }]
+status: active
+summary: A CLI-driven repo intelligence pipeline (package name "rig") that scans a repository, parses it via Tree-sitter, and builds a compiler-style IR → symbols → references → types → graph → analysis chain, exposed through a full CLI. Strongest concrete support so far is Go, via Tree-sitter.
+date: 2026-07-27
+techStack: ["Python", "Tree-sitter", "Click", "pytest"]
+links: [{ label: "GitHub · rig", url: "https://github.com/prajjwal-acharya/rig" }]
 slug: repo-intelligence-platform
 ---
 
@@ -21,7 +21,18 @@ Ingest a repository's source code, git history, dependency graph, CI/CD, Docker,
 
 Given any repository, generate an accurate engineering graph automatically.
 
-<Callout type="research" title="Research phase">
-  Currently exploring similar tools and prior art before committing to an architecture. No code
-  written yet, this page gets rewritten once the dev plan is finalized.
+## Current state
+
+The `rig` Python package now has a working end-to-end pipeline:
+
+- **Repository scanning** (`rig.scanner`) — repo discovery, file walking, `.gitignore`/hidden-file handling, metadata collection, snapshot/stats models.
+- **Plugin system** (`rig.plugins`) — manifests, discovery, registry, lifecycle/context/capability primitives, a manager with error isolation.
+- **Language layer** (`rig.languages`) — a language catalog/registry, detection by file patterns, and language statistics.
+- **Parser framework** (`rig.parsers`) — parser interfaces, registry, manager, pipeline, and Tree-sitter integration. Concrete Go support is implemented (parser factory + grammar wiring); broader language support is still planned.
+- **Compiler-style analysis pipeline** — IR generation (`rig.ir`), symbol table construction (`rig.symbols`), reference resolution (`rig.references`), type modeling/indexing (`rig.types`), graph generation (`rig.graph`), and semantic analyses (`rig.analysis`) for call graphs, type relationships, and dependencies.
+- **CLI** — `scan`, `detect`, `parse`, `ir`, `symbols`, `references`, `types`, `graph`, `analyze`, and `stats` commands, all with dedicated test coverage alongside the scanner/plugins/languages/parsers layers.
+
+<Callout type="insight" title="Next up">
+  Testing rig against a suite of publicly available repositories (moderate priority), and improving
+  analysis performance on the current pipeline overhead (high priority).
 </Callout>
